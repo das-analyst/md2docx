@@ -1,0 +1,49 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ms-documents"
+version = "0.1.0"
+description = "Generate styled Word (.docx) documents from .spec.md files with optional Azure AI enrichment and image generation."
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.10"
+authors = [{ name = "Microsoft Corporation" }]
+keywords = ["docx", "word", "document", "generator", "speckit", "azure", "openai"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Office/Business",
+    "Topic :: Software Development :: Documentation",
+]
+dependencies = [
+    "python-docx>=0.8.11",
+    "pyyaml>=6.0",
+    "lxml>=4.9",
+    "azure-ai-inference>=1.0.0b9",
+    "azure-identity>=1.15",
+    "python-dotenv>=1.0",
+    "openai>=1.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7", "build>=1.0", "twine>=5.0"]
+
+[project.urls]
+Homepage = "https://github.com/microsoft/documents"
+Repository = "https://github.com/microsoft/documents"
+Issues = "https://github.com/microsoft/documents/issues"
+
+[project.scripts]
+documents = "ms_documents.cli:main"
+
+[tool.setuptools]
+packages = ["ms_documents"]
+package-dir = { "ms_documents" = "src" }
