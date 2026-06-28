@@ -1,151 +1,177 @@
-# Document Generator
+# spec-docx (OpenRouter build)
 
-Reads a `.spec.md` file and produces a Word document (`.docx`) with styled headings,
-bullet lists, tables, images, AI-generated visuals, and AI-enriched content.
+Generate styled **Word documents (`.docx`) from Markdown spec files** — with optional AI
+enrichment powered by **OpenRouter** instead of Azure AI.
 
-Adapted from [microsoft/presentations](https://github.com/microsoft/presentations) —
-same spec format, Word output instead of PowerPoint.
+Adapted from [microsoft/documents](https://github.com/microsoft/d878ed7) (MIT), which generates
+`.docx` from `.spec.md` files but is coupled to Azure AI Foundry (`AzureOpenAI` +
+`DefaultAzureCredential`). This fork keeps the renderer and swaps the LLM layer to any
+**OpenAI-compatible endpoint** — tested against OpenRouter — so you can run it with a single
+API key and no Azure subscription.
 
-## Prerequisites
+## Why this exists
 
-- Python 3.10+ — [Download](https://www.python.org/downloads/)
-- pip — included with Python; used to install dependencies
-- Azure Developer CLI (`azd`) — required for provisioning Azure infrastructure ([Install](https://learn.microsoft.com/azure/developer/azure-developer-cli/install-azd))
-- Azure CLI (`az`) — run `az login` so `DefaultAzureCredential` can authenticate ([Install](https://learn.microsoft.com/cli/azure/install-azure-cli))
+The upstream `microsoft/documents` (and its sibling `microsoft/presentations`) are great
+spec-driven generators, but they assume an Azure AI Foundry project: subscription, Foundry
+workspace, model deployments, `az login`. That's a real setup wall.
 
-## Quick Start
+This fork drops that to **30 seconds**:
 
-```powershell
+| | upstream | this fork |
+|---|---|---|
+| LLM provider | Azure AI Foundry only | any OpenAI-compatible endpoint (OpenRouter, OpenAI, local) |
+| Auth | `DefaultAzureCredential` + `az login` | one API key |
+| Azure subscription | required | **not required** |
+| Core docx rendering | offline | offline (unchanged) |
+| AI enrichment | Azure OpenAI | OpenRouter / any `openai` SDK target |
+| Image generation | Azure OpenAI DALL-E | **disabled** (see note below) |
+
+## Setup
+
+```bash
 python -m venv .venv
-.venv\Scripts\Activate.ps1
-
+.venv\Scripts\activate.bat      # Windows
+# source .venv/bin/activate     # macOS/Linux
 pip install -r requirements.txt
-python documents.py .speckit/specifications/example.spec.md
 ```
 
-## Project Structure
+Set your key (get one at https://openrouter.ai/keys):
 
-```
-documents.py              # thin wrapper – delegates to src/
-src/
-├── __init__.py           # package exports (main, render, parse_spec)
-├── cli.py                # argparse CLI entry point
-├── spec_parser.py        # .spec.md → metadata + section list
-├── style.py              # Style class (font sizes from front-matter)
-├── sections.py           # section builder functions (one per layout)
-├── images.py             # image generation via Azure AI REST endpoint
-├── enrichment.py         # ContentUrl fetching & note enrichment via Azure AI
-├── renderer.py           # orchestrates parsing → enrichment → images → docx
-└── spec_writer.py        # serialize enriched spec back to .spec.md
-tests/
-├── test_cli.py           # CLI argument parsing
-├── test_renderer.py      # end-to-end render pipeline
-├── test_sections.py      # section builder functions
-├── test_spec_parser.py   # .spec.md parsing
-├── test_spec_writer.py   # spec round-trip writing
-└── test_style.py         # Style resolution from front-matter
+- **Option A — `.env`:** copy `.env.example` → `.env` and set `OPENROUTER_API_KEY`.
+- **Option B — environment:** `export OPENROUTER_API_KEY=...` (or add to your shell profile).
+
+The tool loads `<cwd>/.env` with `override=False`, so existing env vars win.
+
+## Quick start
+
+```bash
+# Run against the bundled example spec
+python documents.py .speckit/specifications/example.spec.md -o output
+
+# Or use the Windows wrapper (auto-creates venv + installs deps)
+make_docx.bat .speckit/specifications/example.spec.md -o output
 ```
 
-## Features
+## Writing a spec
 
-- **Section types**: `title`, `content`, `section-header`, `two-column`, `resource-box`
-- **Static images**: reference local files with `**Image**: path`
-- **AI-generated images**: describe an image with `**ImagePrompt**` — generated via the Azure AI image endpoint and cached locally
-- **ContentUrls & enrichment**: add `**ContentUrls**` per section to fetch reference content and auto-enrich both bullets and notes via Azure AI Inference
-- **Enrichment caching**: enriched sections are written back to the spec file with `**Enriched**: true` so subsequent builds skip re-enrichment (override with `--refetch`)
-- **Style from spec**: font sizes, colors configurable in the front-matter `style:` block
-- **Versioned output**: each build creates a new versioned `.docx` so previous runs are never overwritten
+A `.spec.md` has **YAML front-matter** + a **markdown body**. Sections are separated by `---`
+horizontal rules and opened with a typed header:
 
-## Spec File Format
-
-Spec files use Markdown with YAML front matter:
-
-```yaml
+```markdown
 ---
 title: My Document
-subtitle: A subtitle
+subtitle: Optional subtitle
 output: My_Document.docx
-text_model: gpt-4o-mini
-image_model: gpt-image-1.5
+author: Optional author
+text_model: openai/gpt-4o-mini
 style:
   title_font_size: 28
+  subtitle_font_size: 14
   body_font_size: 11
-  heading_font_size: 18
-  heading_color: '#1F2937'
-  accent_color: '#0078D4'
+  heading_font_size: 16
+  heading_color: "1F3864"
+  accent_color: "2E75B6"
 ---
 
-## [title] My Title
+## [title] Document Title
 
-**Subtitle**: Author name here
+**Subtitle:** Optional subtitle text
 
 ---
 
-## [content] Section Title
+## [content] Section With Bullets
 
-- Bullet one
-- Bullet two
+- First bullet
+- Second bullet
 
-**Image**: images/diagram.png
-**ImagePrompt**: A futuristic cityscape at sunset
+---
+
+## [two-column] Split Section
+
+**Left**:
+- Left bullet
+
+**Right**:
+- Right bullet
+
+---
+
+## [section-header] Section Break
+
+---
+
+## [resource-box] Resources
+
+**Box**: Links
+- Example | https://example.com
+```
+
+### Front-matter keys
+
+- `text_model` — OpenRouter model ID for enrichment (e.g. `openai/gpt-4o-mini`,
+  `anthropic/claude-3.5-sonnet`, `google/gemini-2.0-flash-001`). Optional; enrichment is skipped
+  if unset.
+- `image_model` — accepted but **ignored** (images disabled in this build; see note below).
+- `style.*` — fonts and colors for the document theme.
+
+### CLI flags
+
+```
+python documents.py <spec> [-o output_dir] [--image-model MODEL] [--refetch] [--sections SELECTION]
+```
+
+`--sections` is 1-indexed: `1`, `3-7`, `1,3-8`.
+
+## AI enrichment (optional)
+
+Add a `**ContentUrls**` block to a `## [content]`, `## [two-column]`, or notes section and the
+tool fetches each URL, then asks the configured model to synthesize supplemental bullets/notes:
+
+```markdown
+## [content] My Section
+
+- Seed bullet
 
 **ContentUrls**:
-- https://learn.microsoft.com/azure/ai-services/openai/overview
-
-**Notes**: Additional context for this section.
+- https://example.com
 ```
 
-### Section Types
+Without `content_urls`, **no model call happens** and the docx builds fully offline. Enrichment
+is additive — your spec is the source of truth.
 
-| Type | Description |
-|------|-------------|
-| `title` | Cover page with large centred title + subtitle |
-| `content` | Heading + bullet list |
-| `section-header` | Page break with prominent section heading |
-| `two-column` | Side-by-side content via table (`**Left**:` / `**Right**:`) |
-| `resource-box` | Labelled resource tables with name/URL rows |
+## Using with Claude Code (or any LLM agent)
 
-## CLI Reference
+Because the interface is "write a `.spec.md`, run a one-line command, get a `.docx`", this tool
+works well as a generation step inside an LLM agent loop. Claude Code (or similar) can author
+the spec from a conversation or a source document, invoke `documents.py`, and return the
+resulting Word file. No Azure infra to provision, no credentials to manage beyond one key.
+
+## Image generation — disabled, be aware
+
+OpenRouter does not currently expose a stable `/images/generations` endpoint, so image
+generation is a **no-op** in this build. `image_prompt` directives are skipped with a printed
+warning; the docx still builds cleanly. To re-enable images, point the client at a provider with
+an OpenAI-compatible images endpoint (e.g. OpenAI directly) and wire it into `src/images.py`.
+
+## Project layout
 
 ```
-python documents.py <spec-file> [options]
-
-positional arguments:
-  spec                  Path to the .spec.md file
-
-options:
-  -o, --output-dir DIR  Output directory (default: output)
-  --image-model MODEL   Image generation model name (overrides front-matter)
-  --refetch             Re-fetch and regenerate all AI enrichments
-  --sections SELECTION  Section numbers to generate (1-indexed).
-                        Examples: '5', '3-7', '1,3,5-8'. Default: all.
+documents.py              thin CLI wrapper
+make_docx.bat             Windows convenience wrapper (venv + deps)
+requirements.txt          python-docx, pyyaml, lxml, python-dotenv, openai
+src/
+  cli.py                  arg parsing + .env loading
+  spec_parser.py          .spec.md -> metadata + section list
+  renderer.py             orchestrates enrichment + section building -> docx
+  sections.py             section builders (title, content, two-column, etc.)
+  style.py                front-matter style -> document theme
+  enrichment.py           URL fetching + OpenRouter chat completions (the swapped module)
+  images.py               image generation (no-op in this build)
+  spec_writer.py          writes enriched spec back to disk
 ```
 
-## Running Tests
+## License
 
-```powershell
-pip install pytest
-pytest tests/ -v
-```
-
-## Contributing
-
-This project welcomes contributions and suggestions.  Most contributions require you to agree to a
-Contributor License Agreement (CLA) declaring that you have the right to, and actually do, grant us
-the rights to use your contribution. For details, visit [Contributor License Agreements](https://cla.opensource.microsoft.com).
-
-When you submit a pull request, a CLA bot will automatically determine whether you need to provide
-a CLA and decorate the PR appropriately (e.g., status check, comment). Simply follow the instructions
-provided by the bot. You will only need to do this once across all repos using our CLA.
-
-This project has adopted the [Microsoft Open Source Code of Conduct](https://opensource.microsoft.com/codeofconduct/).
-For more information see the [Code of Conduct FAQ](https://opensource.microsoft.com/codeofconduct/faq/) or
-contact [opencode@microsoft.com](mailto:opencode@microsoft.com) with any additional questions or comments.
-
-## Trademarks
-
-This project may contain trademarks or logos for projects, products, or services. Authorized use of Microsoft
-trademarks or logos is subject to and must follow
-[Microsoft's Trademark & Brand Guidelines](https://www.microsoft.com/legal/intellectualproperty/trademarks/usage/general).
-Use of Microsoft trademarks or logos in modified versions of this project must not cause confusion or imply Microsoft sponsorship.
-Any use of third-party trademarks or logos are subject to those third-party's policies.
+MIT. This fork retains the upstream [MIT license](LICENSE) from
+[microsoft/documents](https://github.com/microsoft/documents). Forked from commit
+`d878ed7`.

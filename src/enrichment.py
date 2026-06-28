@@ -1,8 +1,7 @@
-"""ContentUrl fetching & note enrichment via Azure OpenAI.
+"""ContentUrl fetching & note enrichment via OpenRouter.
 
-Uses :class:`~openai.AzureOpenAI` with
-:class:`~azure.identity.DefaultAzureCredential` so no vendor-specific key
-(``OPENAI_API_KEY``) is required.
+Uses :class:`~openai.OpenAI` pointed at the OpenRouter OpenAI-compatible
+endpoint (https://openrouter.ai/api/v1) with a Bearer OPENROUTER_API_KEY.
 """
 
 from __future__ import annotations
@@ -14,22 +13,26 @@ import urllib.request
 from urllib.parse import urlparse
 
 
-def _get_openai_endpoint() -> str | None:
-    """Derive the ``*.openai.azure.com`` endpoint from env vars."""
-    account = os.environ.get("AI_PROJECT_NAME", "").strip()
-    if account:
-        return f"https://{account}.openai.azure.com"
-    raw = os.environ.get("AZURE_AI_PROJECT_ENDPOINT", "").strip()
-    if raw:
-        host = urlparse(raw).hostname or ""
-        account = host.split(".")[0]
-        if account:
-            return f"https://{account}.openai.azure.com"
-    return None
+OPENROUTER_BASE_URL = "https://openrouter.ai/api/v1"
+
+
+def _get_openai_client():
+    """Build an OpenAI client pointed at OpenRouter.
+
+    Requires OPENROUTER_API_KEY in the environment (loaded from .env by cli.py,
+    or exported in the shell). Returns None if the key is not set, so callers
+    can skip enrichment gracefully.
+    """
+    api_key = os.environ.get("OPENROUTER_API_KEY", "").strip()
+    if not api_key:
+        return None
+    from openai import OpenAI
+
+    return OpenAI(base_url=OPENROUTER_BASE_URL, api_key=api_key)
 
 
 # ---------------------------------------------------------------------------
-# HTML → plain-text extractor
+# HTML -> plain-text extractor
 # ---------------------------------------------------------------------------
 
 
@@ -88,14 +91,14 @@ def _fetch_url_text(url: str, max_chars: int = 6000) -> str:
 
 
 def enrich_notes_from_urls(section_data: dict, text_model: str = "") -> None:
-    """Fetch ContentUrls and use Azure AI to synthesise supplemental notes."""
+    """Fetch ContentUrls and use OpenRouter to synthesise supplemental notes."""
     urls = section_data.get("content_urls", [])
     if not urls:
         return
 
-    endpoint = _get_openai_endpoint()
-    if not endpoint:
-        print("  Skipping note enrichment (AI_PROJECT_NAME / AZURE_AI_PROJECT_ENDPOINT not set).")
+    client = _get_openai_client()
+    if client is None:
+        print("  Skipping note enrichment (OPENROUTER_API_KEY not set).")
         return
 
     fetched_parts: list[str] = []
@@ -125,22 +128,11 @@ def enrich_notes_from_urls(section_data: dict, text_model: str = "") -> None:
 
     notes_model = (
         text_model
-        or os.environ.get("AZURE_AI_TEXT_MODEL", "")
-        or "gpt-4o-mini"
+        or os.environ.get("OPENROUTER_TEXT_MODEL", "")
+        or "openai/gpt-4o-mini"
     )
 
     try:
-        from azure.identity import DefaultAzureCredential
-        from openai import AzureOpenAI
-
-        credential = DefaultAzureCredential()
-        token = credential.get_token("https://cognitiveservices.azure.com/.default")
-        client = AzureOpenAI(
-            azure_endpoint=endpoint,
-            api_version="2024-12-01-preview",
-            azure_ad_token=token.token,
-        )
-
         print(f"  Enriching notes for: {title}")
         response = client.chat.completions.create(
             model=notes_model,
@@ -156,8 +148,8 @@ def enrich_notes_from_urls(section_data: dict, text_model: str = "") -> None:
             )
     except ImportError:
         print(
-            "  Warning: 'openai' and 'azure-identity' packages needed for note enrichment. "
-            "Install with: pip install openai azure-identity"
+            "  Warning: 'openai' package needed for note enrichment. "
+            "Install with: pip install openai"
         )
     except Exception as exc:
         print(f"  Warning: note enrichment failed: {exc}")
@@ -169,7 +161,7 @@ def enrich_notes_from_urls(section_data: dict, text_model: str = "") -> None:
 
 
 def enrich_content_from_urls(section_data: dict, text_model: str = "") -> None:
-    """Fetch ContentUrls and use Azure AI to enrich section body content."""
+    """Fetch ContentUrls and use OpenRouter to enrich section body content."""
     stype = section_data.get("type", "")
     if stype not in ("content", "two-column"):
         return
@@ -178,9 +170,9 @@ def enrich_content_from_urls(section_data: dict, text_model: str = "") -> None:
     if not urls:
         return
 
-    endpoint = _get_openai_endpoint()
-    if not endpoint:
-        print("  Skipping content enrichment (AI_PROJECT_NAME / AZURE_AI_PROJECT_ENDPOINT not set).")
+    client = _get_openai_client()
+    if client is None:
+        print("  Skipping content enrichment (OPENROUTER_API_KEY not set).")
         return
 
     fetched_parts: list[str] = []
@@ -197,22 +189,11 @@ def enrich_content_from_urls(section_data: dict, text_model: str = "") -> None:
 
     content_model = (
         text_model
-        or os.environ.get("AZURE_AI_TEXT_MODEL", "")
-        or "gpt-4o-mini"
+        or os.environ.get("OPENROUTER_TEXT_MODEL", "")
+        or "openai/gpt-4o-mini"
     )
 
     try:
-        from azure.identity import DefaultAzureCredential
-        from openai import AzureOpenAI
-
-        credential = DefaultAzureCredential()
-        token = credential.get_token("https://cognitiveservices.azure.com/.default")
-        client = AzureOpenAI(
-            azure_endpoint=endpoint,
-            api_version="2024-12-01-preview",
-            azure_ad_token=token.token,
-        )
-
         if stype == "content":
             _enrich_content_bullets(
                 client, content_model, section_data, title, context_block,
@@ -221,11 +202,10 @@ def enrich_content_from_urls(section_data: dict, text_model: str = "") -> None:
             _enrich_two_column_bullets(
                 client, content_model, section_data, title, context_block,
             )
-
     except ImportError:
         print(
-            "  Warning: 'openai' and 'azure-identity' packages needed for content enrichment. "
-            "Install with: pip install openai azure-identity"
+            "  Warning: 'openai' package needed for content enrichment. "
+            "Install with: pip install openai"
         )
     except Exception as exc:
         print(f"  Warning: content enrichment failed for '{title}': {exc}")
