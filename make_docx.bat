@@ -15,7 +15,7 @@ if "%~1"=="" (
     echo Usage: make_docx.bat path\to\spec.spec.md [-o output_dir] [other documents.py flags]
     echo.
     echo Example:
-    echo   make_docx.bat C:\cli-projects\mba_ai\courses\mgt500\MGT500.spec.md -o C:\cli-projects\mba_ai\courses\mgt500
+    echo   make_docx.bat path\to\your.spec.md -o output_dir
     exit /b 1
 )
 

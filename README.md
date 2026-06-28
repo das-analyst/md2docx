@@ -3,11 +3,12 @@
 Generate styled **Word documents (`.docx`) from Markdown spec files** — with optional AI
 enrichment powered by **OpenRouter** instead of Azure AI.
 
-> **Works as a Claude Code tool (or any LLM agent):** the sibling
-> [`mba_ai`](https://github.com/das-analyst/mba_ai) project registers this as an MCP server
-> via its `.mcp.json`. Because the interface is "write a `.spec.md`, run one command, get a
-> `.docx`", Claude can author the spec in conversation, invoke the tool, and return the
-> resulting Word file. No Azure infra to provision, one API key.
+> **Works as a Claude Code tool (or any LLM agent):** an MCP server wrapper
+> (`mcp_server.py`) ships with this repo. Register it in your project's `.mcp.json` and the
+> `generate_docx` tool is available to Claude (or any OpenAI-compatible MCP client). Because
+> the interface is "write a `.spec.md`, run one command, get a `.docx`", an agent can author
+> the spec in conversation, invoke the tool, and return the resulting Word file. No Azure
+> infra to provision, one API key.
 
 **What this doesn't do yet:** image generation is **disabled** — OpenRouter has no stable
 `/images/generations` endpoint, so `image_prompt` directives are skipped (with a warning);

@@ -5,7 +5,6 @@ OpenAI-compatible MCP client) can produce .docx files from .spec.md specs
 without being told the exact CLI invocation.
 
 Run with:  python -m mcp_server
-(registered in mba_ai/.mcp.json pointing at this venv's python.exe)
 """
 
 from __future__ import annotations
@@ -21,7 +20,7 @@ from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from mcp.types import TextContent, Tool
 
-# Honor a .env in the launching project (e.g. mba_ai) before enrichment runs.
+# Honor a .env in the launching project before enrichment runs.
 from src.cli import _load_env
 
 _load_env()
