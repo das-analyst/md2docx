@@ -5,12 +5,12 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "ms-documents"
 version = "0.1.0"
-description = "Generate styled Word (.docx) documents from .spec.md files with optional Azure AI enrichment and image generation."
+description = "Generate styled Word (.docx) documents from .spec.md files with optional AI enrichment via any OpenAI-compatible endpoint (OpenRouter, OpenAI, local)."
 readme = "README.md"
 license = { file = "LICENSE" }
 requires-python = ">=3.10"
 authors = [{ name = "Microsoft Corporation" }]
-keywords = ["docx", "word", "document", "generator", "speckit", "azure", "openai"]
+keywords = ["docx", "word", "document", "generator", "speckit", "openai", "openrouter", "mcp"]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
@@ -27,10 +27,9 @@ dependencies = [
     "python-docx>=0.8.11",
     "pyyaml>=6.0",
     "lxml>=4.9",
-    "azure-ai-inference>=1.0.0b9",
-    "azure-identity>=1.15",
     "python-dotenv>=1.0",
     "openai>=1.0",
+    "mcp>=1.0",
 ]
 
 [project.optional-dependencies]
@@ -38,11 +37,12 @@ dev = ["pytest>=7", "build>=1.0", "twine>=5.0"]
 
 [project.urls]
 Homepage = "https://github.com/microsoft/documents"
-Repository = "https://github.com/microsoft/documents"
-Issues = "https://github.com/microsoft/documents/issues"
+Repository = "https://github.com/das-analyst/md2docx"
+Issues = "https://github.com/das-analyst/md2docx/issues"
 
 [project.scripts]
 documents = "ms_documents.cli:main"
+mcp_server = "ms_documents.mcp_server:main"
 
 [tool.setuptools]
 packages = ["ms_documents"]

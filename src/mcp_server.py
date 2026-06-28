@@ -4,7 +4,7 @@ Exposes the document generator as MCP tools so Claude Code (and any
 OpenAI-compatible MCP client) can produce .docx files from .spec.md specs
 without being told the exact CLI invocation.
 
-Run with:  python -m mcp_server
+Run with:  python -m ms_documents.mcp_server
 """
 
 from __future__ import annotations
@@ -21,7 +21,7 @@ from mcp.server.stdio import stdio_server
 from mcp.types import TextContent, Tool
 
 # Honor a .env in the launching project before enrichment runs.
-from src.cli import _load_env
+from .cli import _load_env
 
 _load_env()
 
@@ -98,7 +98,7 @@ async def _call_tool(name: str, arguments: dict) -> list[TextContent]:
 
 
 async def _generate_docx(arguments: dict) -> list[TextContent]:
-    from src.cli import main
+    from .cli import main
 
     spec = arguments.get("spec", "").strip()
     output_dir = arguments.get("output_dir") or ""
